@@ -1,0 +1,21 @@
+
+The usage of this code is very similar to MST parser. 
+We use the same data format used by MST parser. See "data" directory for some examples.
+
+To compile the code, do:
+    (1) go to lib/SVDLIBC and compile it
+    (2) sh make.sh
+
+To train a model, do:
+    sh run.sh LANGUAGE MODEL_ID (other arguments)
+for example,
+    sh run.sh english07 model1 max-sent:100
+    sh run.sh english07 model2 iters:100 
+
+To apply the model, do:
+    sh run_test.sh LANGUAGE MODEL_ID TEST_FILE OUTPUT_FILE
+for example,
+    sh run_test.sh mlg 1 data/mlg.test.ulab out.lab
+    sh run_test.sh mlg 2 data/mlg.test.ulab out.lab
+
+

@@ -1,0 +1,30 @@
+------
+FLAGS
+------
+train-file: data/english07.train.lab.model1
+test-file: data/english07.test.lab.model1
+model-name: runs/english07.model.lab.model1
+output-file: null
+train: true
+test: true
+iters: 100
+label: false
+max-sent: 100
+lambdaEta: 0.9
+C: 0.0
+cc: 0.001
+R: 100
+NumThreads: 4
+word-vector:null
+loss: SMOOTHED_HINGE
+------
+
+Creating Alphabet ... Coarse POS tag mappings not found.
+Done.
+Num of Features: 3556 115767
+Num of labels: 1
+WV unseen rate: 1.000000
+
+Creating Dependency Instance: 100
+100 instances in total.
+
