@@ -51,7 +51,8 @@ public class LowRankModel implements Serializable {
 	public LowRankModel(PairPipe pipe, int N) throws Exception {
 		
     A = new LowRankMatrix();
-    //sizeA = pipe. 
+    sizeA = pipe.featureLength;
+    sizeEta = 10;
 
 		//eta = new double[pipe.arcAlphabet.size()];
 		//etaScale = 1.0;
@@ -134,6 +135,7 @@ public class LowRankModel implements Serializable {
       //ei.aggregate();
       */
       
+      /*
       SparseMatrix hi = new SparseMatrix(sizeA, sizeA);
       for (int child = 1; child < N; ++child) {
         int head = actDeps[child];
@@ -158,26 +160,50 @@ public class LowRankModel implements Serializable {
         }
       }
       //hi.aggregate();
-        
-        
-        double ai = A.dotProduct(hi) + ei.dotProduct(eta)*etaScale;
-      double xi = - ai + Fi;
-      double fxi = getLossGradient(xi);  // new loss gradient here...
+      */
+      
+      // A: for binary-label statute vector pairs 
+      // A: --> for now, *no eta* --> just make blank
+      SparseMatrix ei = new SparseMatrix(sizeEta);
+      SparseMatrix hi = new SparseMatrix(sizeA, sizeA);
+      SparseMatrix m = SparseMatrix.outerProduct(
+              inst.vecs[0], inst.vecs[1]);
+      hi.addEntries(m);
+      //hi.aggregate();
+
+      //double ai = A.dotProduct(hi) + ei.dotProduct(eta)*etaScale;
+      //double xi = - ai + Fi;
+      //double fxi = getLossGradient(xi);  // new loss gradient here...
+
+      // A:
+      //double Fi = inst.label ? 1.0 : 0.0;  
+      double ai = A.dotProduct(hi);
+      //double xi = Fi*(1.0-ai) + (1.0-Fi)*ai;
+      
+      double xi = 0.0;
+      if (inst.label && ai < 0.5) {
+        xi = ai;
+      } else if (!inst.label && ai > 0.5) {
+        xi = -ai;
+      }
+      double fxi = xi;
+
       if (fxi != 0) {
         synchronized (dA) {
           dA.addEntries(hi, fxi);
         }
+        
         synchronized (deta) {
           deta.addEntries(ei, fxi);
         }
             
-            synchronized (gradInsts) {
-                gradInsts[numGradInsts++] = 
-                    new GradientInstance(hi, ei, ai, xi);
-            }
-            return xi;
+        synchronized (gradInsts) {
+          gradInsts[numGradInsts++] = 
+              new GradientInstance(hi, ei, ai, xi);
+        }
+        return xi;
       }	
-        return 0.0;
+      return 0.0;
     }
 
     
@@ -186,29 +212,32 @@ public class LowRankModel implements Serializable {
         //if (iters % 1000 == 0)
     	//    System.out.printf("  Optimization Iter %d%n", iters);
     	
-    	int sda = dA.size(), sdeta = deta.size();
+    	int sda = dA.size();
+      //int sdeta = deta.size();
     	dA.aggregate();
-    	deta.aggregate();
+    	//deta.aggregate();
     	if (iters % 1000 == 0)
-    		System.out.printf("  (%d->%d, %d->%d) elements in gradients.%n", 
-    				sda, dA.size(), sdeta, deta.size());
+    		//System.out.printf("  (%d->%d, %d->%d) elements in gradients.%n", 
+    		//		sda, dA.size(), sdeta, deta.size());
     	    	
     	// grad(Loss(data)) = 1/N * \sum grad(loss(sample_i))
     	dA.rescale(1.0/N);
-    	deta.rescale(1.0/N);
+    	//deta.rescale(1.0/N);
     	
     	double sigma = 0.0;
     	double[] u = new double[sizeA], v = new double[sizeA];
     	if (dA.size() > 0) sigma = SVD.powerMethod(dA.x(), dA.y(), dA.z(), u, v);    	
-    	double l2Eta = deta.l2Norm();
+    	//double l2Eta = deta.l2Norm();
     	//System.out.printf("  sigma(A)=%.6f  |eta|=%.6f  lambda_eta=%f%n",
     	//		sigma, l2Eta, lambdaEta);  
         
+        /*
         boolean updateEta = l2Eta > sigma * lambdaEta;
         if (updateEta) {
             double coeff = C / lambdaEta / l2Eta;
             deta.rescale(coeff);
         }
+        */
         
         double alpha = iters > 1 ? 2.0/iters : 1.0;     // step size;
 //        if (lineSearch) {
@@ -225,34 +254,34 @@ public class LowRankModel implements Serializable {
          
     	if (alpha < 1.0) {
     		A.rescale(1.0-alpha);
-    		etaScale *= (1.0-alpha);
+    		//etaScale *= (1.0-alpha);
             if (A.scale() < 1e-4) A.resetScale();
-            if (etaScale < 1e-4) {
-                for (int p = 0; p < sizeEta; ++p) eta[p] *= etaScale;
-                etaScale = 1.0;
-            }
+            //if (etaScale < 1e-4) {
+            //    for (int p = 0; p < sizeEta; ++p) eta[p] *= etaScale;
+            //    etaScale = 1.0;
+            //}
     	} else {
     		A.clear();
-    		for (int p = 0; p < sizeEta; ++p) eta[p] = 0;
+    		//for (int p = 0; p < sizeEta; ++p) eta[p] = 0;
     	}
 
-    	if (updateEta) {				// largest singular value is C*|eta|/lambda_eta
-    	    ++etaUpdCnt;
-            alpha /= etaScale;
-    		for (int i = 0, S = deta.size(); i < S; ++i)
-    			eta[deta.x(i)] += deta.z(i) * alpha;
+    	//if (updateEta) {				// largest singular value is C*|eta|/lambda_eta
+    	  //  ++etaUpdCnt;
+        //    alpha /= etaScale;
+    		//for (int i = 0, S = deta.size(); i < S; ++i)
+    		//	eta[deta.x(i)] += deta.z(i) * alpha;
     		
-    	} else {						// largest singular value is C*sigma
+    	//} else {						// largest singular value is C*sigma
     		
     		A.add(alpha * C, u, v);
             //System.out.printf("  ||A|| = %f%n", A.traceNorm());
-    	}
+    	//}
         
         if (iters % 1000 == 0)
             System.out.printf("  GD iter: %d  Rank(A)=%d   Updated eta %d times%n", 
         	    iters, A.size(), etaUpdCnt);
     	dA = new SparseMatrix(sizeA, sizeA);
-    	deta = new SparseMatrix(sizeEta);
+    	//deta = new SparseMatrix(sizeEta);
         numGradInsts = 0;
     }
     
@@ -305,7 +334,7 @@ public class LowRankModel implements Serializable {
     	}
     	return 0;
     }
-    */
+
     /*
     private double getLossGradient(double x) {
     	if (lossType == LossType.HINGE) {

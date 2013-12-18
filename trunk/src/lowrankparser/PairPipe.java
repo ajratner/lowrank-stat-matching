@@ -27,7 +27,7 @@ public class PairPipe {
 
   // A: we will just load the feature vectors directly, as printed from python code
   // format = vec1 // vec2 // d_vec // label (0/1) // //
-  public PairInstance[] loadPythonVecs(String file) throws IOException {
+  public PairInstance[] createInstance(String file) throws IOException {
 
   BufferedReader in = //new BufferedReader(new FileReader(file));
   new BufferedReader(new InputStreamReader(new FileInputStream(file),"UTF8"));
@@ -37,7 +37,7 @@ public class PairPipe {
       
   int num1 = 0;
   while(lines != null) {
-    if ((num1+1) % 100 == 0)
+    if ((num1+1) % 10000 == 0)
       System.out.printf("Creating Pair Instance: %d%n", num1+1);
     
     String[] vec1 = lines[0];
@@ -57,7 +57,7 @@ public class PairPipe {
     for (int i=0; i<vec2.length; i++) {
       v2[i] = Float.parseFloat(vec2[i]);
     }
-    if (label[0] == "1.0") {
+    if (label[0].equals("1.0")) {
       lbl = true;
     } else {
       lbl = false;
@@ -78,6 +78,33 @@ public class PairPipe {
   
   return pti;
   }
+
+  public PairInstance createInstance(BufferedReader in) throws IOException {
+    	String[][] lines = getLines(in);
+    	if (lines == null) return null;
+    	
+    String[] vec1 = lines[0];
+    String[] vec2 = lines[1];
+    String[] label = lines[2];
+    
+    float[] v1 = new float[vec1.length];
+    float[] v2 = new float[vec2.length];
+    boolean lbl = false;
+					    
+		PairInstance pti = new PairInstance(v1,v2,lbl);
+		
+    /*    
+		String spans = "";
+	    for(int i = 1; i < deps.length; i++) {
+	    	spans += deps[i]+"|"+i+":"+typeAlphabet.lookupIndex(labs[i])+" ";
+	    }		
+	    pti.actParseTree = spans.trim();
+		
+	    createFeatures(pti);
+    */
+	    
+	    return pti;
+    }
 
   
   // A: for our format...

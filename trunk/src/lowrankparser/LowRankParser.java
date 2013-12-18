@@ -28,8 +28,8 @@ public class LowRankParser {
 
 	public static int maxNumIters = 100;
   public static double bestDevUAS = -1; 
-	public static DepPipe pipe;
-	public static PairPipe ppipe;
+	//public static DepPipe pipe;
+	public static PairPipe pipe;
 	public static LowRankModel model;
 	
 	public static int batchSize = 10;
@@ -43,11 +43,11 @@ public class LowRankParser {
 		
 		pipe = null;
 		model = null;
-		if (wordVectorFile != null) 
-			DepPipe.loadWordVectors(wordVectorFile);
+		//if (wordVectorFile != null) 
+		//	PairPipe.loadWordVectors(wordVectorFile);
 		
 		if (train) {
-			ppipe = new PairPipe();
+			pipe = new PairPipe();
       
       //pipe.setLabeled(trainFile);
 			//pipe.createAlphabets(trainFile);
@@ -66,18 +66,18 @@ public class LowRankParser {
 
       // A: we will just load the feature vectors directly, as printed from python code
       // format = vec1 // vec2 // d_vec // label (0/1) // //
-      PairInstance[] lstTrain = ppipe.loadPythonVecs(trainFile);
+      PairInstance[] lstTrain = pipe.createInstance(trainFile);
 
-      System.out.println(ppipe.featureLength);
-
-			//model = new LowRankModel(pipe, lstTrain.length);
+			model = new LowRankModel(pipe, lstTrain.length);
+			
+      //System.out.println(pipe.featureLength);
+      
+      train(lstTrain, model, pipe);
 			
       // A: testing stop
       System.exit(0);
-      
-      //train(lstTrain, model, pipe);
-			
-			//if (bestDevUAS == -1) saveModel();
+
+			if (bestDevUAS == -1) saveModel();
 		}
 		
 		if (test) {
@@ -85,7 +85,7 @@ public class LowRankParser {
 			//if (!train) {
                 System.out.println("Loading model...");
 				loadModel();
-		    	pipe.setLabeled(testFile);
+		    	//pipe.setLabeled(testFile);
 			//}
 			
 			System.out.println("_____________________________________________");
@@ -94,6 +94,7 @@ public class LowRankParser {
 			System.out.println();
 			evaluateSet(model, pipe, true);
             if (!train) {           // also see UAS when seen features are removed
+                /*
                 if (pipe.constructSeenBigram) {
                     pipe.filterBigram = true;
                     evaluateSet(model, pipe);
@@ -102,7 +103,7 @@ public class LowRankParser {
                             pipe.bgHit/(pipe.bgHit+pipe.bgMiss+1e-30),
                             pipe.bgHit, pipe.bgMiss);
                     pipe.filterBigram = false;
-                }
+                }*/
                 evalWithPunc = false;
                 evaluateSet(model, pipe);
                 evalWithPunc = true;
@@ -116,8 +117,8 @@ public class LowRankParser {
     }
     
     
-    public static void train(DepInstance[] lstTrain, LowRankModel model,
-    		DepPipe pipe) throws IOException, InterruptedException {
+    public static void train(PairInstance[] lstTrain, LowRankModel model,
+    		PairPipe pipe) throws IOException, InterruptedException {
     	
         if (batchSize <= 0) batchSize = lstTrain.length; 
     	for (int i = 1; i <= maxNumIters; ++i) {
@@ -156,8 +157,8 @@ public class LowRankParser {
     	
     }
     
-    public static boolean trainIter(int iIter, DepInstance[] lstTrain, 
-    		LowRankModel model, DepPipe pipe) throws IOException, InterruptedException {
+    public static boolean trainIter(int iIter, PairInstance[] lstTrain, 
+    		LowRankModel model, PairPipe pipe) throws IOException, InterruptedException {
         
         boolean more = false;
         DecodingThread[] threads = new DecodingThread[numThreads];
@@ -180,18 +181,21 @@ public class LowRankParser {
         	taskQueue.clear();
         	for (int j = i; j < N && j < i + batchSize; ++j) {
                 DecodingInstance dinst = new DecodingInstance();
-                DepInstance inst = lstTrain[j];
+                PairInstance inst = lstTrain[j];
                 dinst.index = j;
                 dinst.inst = inst;
                 int n = dinst.inst.length;
-                dinst.arcScores = new double[inst.length][inst.length];
-    		    dinst.ntScores = new double[inst.length][pipe.types.length][2][2];
-    		    model.calculateScores(dinst.inst, dinst.arcScores, dinst.ntScores);
+                //dinst.arcScores = new double[inst.length][inst.length];
+    		    //dinst.ntScores = new double[inst.length][pipe.types.length][2][2];
+    		    //model.calculateScores(dinst.inst, dinst.arcScores, dinst.ntScores);
                 taskQueue.add(dinst);
                 //taskQueue.add(j); 
             }
         	
         	int K = taskQueue.size();
+
+          // A: test
+          //System.out.println(K);
         	
         	for (int j = 0; j < numThreads; ++j)
         		threads[j] = new DecodingThread(taskQueue, model);
@@ -205,7 +209,7 @@ public class LowRankParser {
         	//System.out.printf("%d ms.%n", end-start);
             
             start = System.currentTimeMillis();
-        	model.optimize(K);
+            model.optimize(K);
             end = System.currentTimeMillis();
             timeOpt += (end - start);
         	
@@ -234,7 +238,7 @@ public class LowRankParser {
         return more;
     }
     
-    public static double evaluateSet(LowRankModel model, DepPipe pipe, boolean output)
+    public static double evaluateSet(LowRankModel model, PairPipe pipe, boolean output)
     		throws IOException, InterruptedException {
     	
     	BufferedReader in = new BufferedReader(
@@ -250,7 +254,7 @@ public class LowRankParser {
     	int nUCorrect = 0, nLCorrect = 0;
     	int nDeps = 0, nWhole = 0, nSents = 0;
     	
-    	DepInstance inst = pipe.createInstance(in);
+    	PairInstance inst = pipe.createInstance(in);
     	while (inst != null) {
     		++nSents;
             
@@ -259,7 +263,7 @@ public class LowRankParser {
     		    nToks = (inst.length - 1);
             else {
                 for (int i = 1; i < inst.length; ++i) {
-                	if (inst.sentence[i].matches("[-!\"#%&'()*,./:;?@\\[\\]_{}、]+")) continue;
+                	//if (inst.sentence[i].matches("[-!\"#%&'()*,./:;?@\\[\\]_{}、]+")) continue;
                     //if ( (inst.posC != null && inst.posC[i].equals(".")) ||
                     //     (inst.posC == null && inst.sentence[i].matches("[,.:'`]+"))) continue;
                     ++nToks;
@@ -267,20 +271,21 @@ public class LowRankParser {
             }
             nDeps += nToks;
     		
-    		double[][] arcScores = new double[inst.length][inst.length];
-    		double[][][][] ntScores = new double[inst.length][pipe.types.length][2][2];
-    		model.calculateScores(inst, arcScores, ntScores);
+    		//double[][] arcScores = new double[inst.length][inst.length];
+    		//double[][][][] ntScores = new double[inst.length][pipe.types.length][2][2];
+    		//model.calculateScores(inst, arcScores, ntScores);
     		
     		//String bestParse = decoder.decodeProjective(inst, arcScores, ntScores);
-    		String bestParse = decoder.decodeProjective(inst, arcScores, ntScores, false);
+    		//String bestParse = decoder.decodeProjective(inst, arcScores, ntScores, false);
 
+        /*
     		int ua = evaluateUnlabelCorrect(inst, inst.actParseTree, bestParse), la = 0;
-    		if (DepPipe.learnLabel)
+    		if (PairPipe.learnLabel)
     			la = evaluateLabelCorrect(inst, inst.actParseTree, bestParse);
     		nUCorrect += ua;
     		nLCorrect += la;
-    		if ((DepPipe.learnLabel && la == nToks) ||
-    				(!DepPipe.learnLabel && ua == nToks)) 
+    		if ((PairPipe.learnLabel && la == nToks) ||
+    				(!PairPipe.learnLabel && ua == nToks)) 
     			++nWhole;
     		
     		if (out != null) {
@@ -290,11 +295,12 @@ public class LowRankParser {
     			for (int i = 1; i < inst.length; ++i) {
     				line1 += inst.sentence[i] + "\t";
     				line2 += inst.pos[i] + "\t";
-    				line3 += (DepPipe.learnLabel ? pipe.types[labs[i]] : labs[i]) + "\t";
+    				line3 += (PairPipe.learnLabel ? pipe.types[labs[i]] : labs[i]) + "\t";
     				line4 += deps[i] + "\t";
     			}
     			out.write(line1.trim() + "\n" + line2.trim() + "\n" + line3.trim() + "\n" + line4.trim() + "\n\n");
     		}
+        */
     		
     		inst = pipe.createInstance(in);
     	}
@@ -311,7 +317,7 @@ public class LowRankParser {
     	return (nUCorrect+0.0)/nDeps;
     }
     
-    public static double evaluateSet(LowRankModel model, DepPipe pipe) 
+    public static double evaluateSet(LowRankModel model, PairPipe pipe) 
     		throws IOException, InterruptedException  {
     	
     	return evaluateSet(model, pipe, false);
@@ -458,35 +464,36 @@ public class LowRankParser {
     
     public static void saveModel() throws IOException {
     	ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(modelFile));
-    	out.writeObject(pipe.wordAlphabet);
-    	out.writeObject(pipe.arcAlphabet);
-    	out.writeObject(pipe.typeAlphabet);
-        out.writeObject(pipe.seenBigramAlphabet);
+    	//out.writeObject(pipe.wordAlphabet);
+    	//out.writeObject(pipe.arcAlphabet);
+    	//out.writeObject(pipe.typeAlphabet);
+      //  out.writeObject(pipe.seenBigramAlphabet);
     	out.writeObject(model);
     	out.close();
     }
     
     public static void loadModel() throws Exception {
     	ObjectInputStream in = new ObjectInputStream(new FileInputStream(modelFile));
-    	pipe = new DepPipe();
-    	pipe.wordAlphabet = (Alphabet) in.readObject();
-    	pipe.arcAlphabet = (Alphabet) in.readObject();
-    	pipe.typeAlphabet = (Alphabet) in.readObject();
+    	pipe = new PairPipe();
+    	//pipe.wordAlphabet = (Alphabet) in.readObject();
+    	//pipe.arcAlphabet = (Alphabet) in.readObject();
+    	//pipe.typeAlphabet = (Alphabet) in.readObject();
         Object obj = in.readObject();
-        if (obj instanceof Alphabet) {
-            pipe.seenBigramAlphabet = (Alphabet) obj;
-            obj = in.readObject();
-        }
+        //if (obj instanceof Alphabet) {
+        //    pipe.seenBigramAlphabet = (Alphabet) obj;
+        //    obj = in.readObject();
+        //}
     	model = (LowRankModel) obj;
     	in.close();
-    	pipe.closeAlphabets();
-        pipe.seenBigramAlphabet.stopGrowth();
+    	//pipe.closeAlphabets();
+      //  pipe.seenBigramAlphabet.stopGrowth();
     }
 }
 
 class DecodingInstance {
     public int index;
-    public DepInstance inst;
+    //public DepInstance inst;
+    public PairInstance inst;
     public double[][] arcScores;
     public double[][][][] ntScores;
     
@@ -513,19 +520,24 @@ class DecodingThread extends Thread {
 	
 	public void run() {
 		for (DecodingInstance dinst = taskQueue.poll(); dinst != null; dinst = taskQueue.poll()) {
-			DepInstance inst = dinst.inst;
+			//DepInstance inst = dinst.inst;
+			PairInstance inst = dinst.inst;
+      
+      /*
       String bestParse = decoder.decodeProjective(inst, dinst.arcScores, 
                                             dinst.ntScores, true);
       int ua = LowRankParser.evaluateUnlabelCorrect(inst.actParseTree, bestParse), la = 0;
     		if (DepPipe.learnLabel)
     			la = LowRankParser.evaluateLabelCorrect(inst.actParseTree, bestParse);
-
-    		if ((DepPipe.learnLabel && la != inst.length-1) ||
-    				(!DepPipe.learnLabel && ua != inst.length-1)) {
+  */
+    	//	if ((DepPipe.learnLabel && la != inst.length-1) ||
+    	//			(!DepPipe.learnLabel && ua != inst.length-1)) {
+    			//double l = model.addConstraint(inst, bestParse);
+          String bestParse = "";
     			double l = model.addConstraint(inst, bestParse);
                 loss += l;
                 more |= (l > 0);
-            }
+      //      }
 		}
 		
 	}
